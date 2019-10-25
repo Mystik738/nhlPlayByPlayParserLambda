@@ -65,7 +65,7 @@ class NHLHTMLParser(HTMLParser):
                 self.depth += 1
             #The lines we're interested in have this particular attribute, so we flag it
             for attr in attrs:
-                if attr[0] == 'class' and attr[1] == 'evenColor':
+                if attr[0] == 'class' and (attr[1] == 'evenColor' or attr[1] == 'oddColor'):
                     self.in_line = True
     
     #What to do when we end a tag. If we're flagged to be in the right spot, pull out required data 
