@@ -5,8 +5,11 @@ import re
 from datetime import datetime
 from html.parser import HTMLParser
 import csv
+import logging
 
 s3_client = boto3.client('s3')
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 #This Lambda function is used to convert the NHL's play by play format into a csv file that is later used for database
 # entry. An example play by play can be found at http://www.nhl.com/scores/htmlreports/20122013/PL020002.HTM
@@ -117,10 +120,15 @@ def lambda_handler(event, context):
         #Get info from event and download the file from S3
         bucket = record['s3']['bucket']['name']
         key = record['s3']['object']['key']
-        filepath = key[:key.rfind("/")]
+        if key.rfind("/") != -1 :
+            filepath = key[:key.rfind("/")]
+        else :
+            filepath = ""
         filename = key[key.rfind("/")+1:]
         download_path = '/tmp/{}'.format(filename)
         
+        logger.info('Parsing ' + filepath + filename)
+
         s3_client.download_file(bucket, key, download_path)
         
         #Some regex that'll allow us to parse the html
@@ -148,11 +156,18 @@ def lambda_handler(event, context):
             nhlParser = NHLHTMLParser()
             nhlParser.feed(contents)
         
+        logger.info('Writing csv')
+
         #write out our results to a csv file
         with open(download_path[:download_path.find('.')] + '.csv', 'w') as f:
             writer = csv.writer(f, 'unix')
             writer.writerows(date_line)
             writer.writerows(nhlParser.lines)
-        
+
+        logger.info('Uploading ' + download_path[:download_path.find('.')] + '.csv to ' + filepath + "/" + filename[:filename.find('.')] + '.csv')
+
         #Upload the file to S3
-        s3_client.upload_file(download_path[:download_path.find('.')] + '.csv', bucket, filepath + "/" + filename[:filename.find('.')] + '.csv')
+        if filepath != "":
+            s3_client.upload_file(download_path[:download_path.find('.')] + '.csv', bucket, filepath + "/" + filename[:filename.find('.')] + '.csv')
+        else :
+            s3_client.upload_file(download_path[:download_path.find('.')] + '.csv', bucket, filename[:filename.find('.')] + '.csv')
